@@ -8,7 +8,7 @@ import streamlit as st
 
 
 st.set_page_config(
-    page_title="Streamlit Migration App",
+    page_title="운영 성과 대시보드",
     page_icon=":bar_chart:",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -204,9 +204,9 @@ def inject_css() -> None:
 def build_sample_data() -> pd.DataFrame:
     rng = np.random.default_rng(42)
     days = pd.date_range(datetime.today() - timedelta(days=179), periods=180, freq="D")
-    channels = ["Organic", "Paid", "Referral", "Email"]
-    regions = ["Seoul", "Busan", "Incheon", "Daegu", "Daejeon"]
-    products = ["Starter", "Growth", "Enterprise"]
+    channels = ["자연 유입", "유료 광고", "추천", "이메일"]
+    regions = ["서울", "부산", "인천", "대구", "대전"]
+    products = ["스타터", "성장형", "엔터프라이즈"]
 
     records = []
     for day in days:
@@ -215,24 +215,24 @@ def build_sample_data() -> pd.DataFrame:
         for channel in channels:
             for product in products:
                 base = {
-                    "Organic": 820,
-                    "Paid": 1050,
-                    "Referral": 470,
-                    "Email": 390,
+                    "자연 유입": 820,
+                    "유료 광고": 1050,
+                    "추천": 470,
+                    "이메일": 390,
                 }[channel]
                 product_weight = {
-                    "Starter": 0.74,
-                    "Growth": 1.0,
-                    "Enterprise": 1.36,
+                    "스타터": 0.74,
+                    "성장형": 1.0,
+                    "엔터프라이즈": 1.36,
                 }[product]
                 sessions = max(40, int(rng.normal(base * product_weight * weekday_boost * trend, 95)))
                 conversion_rate = np.clip(
                     rng.normal(
                         {
-                            "Organic": 0.052,
-                            "Paid": 0.044,
-                            "Referral": 0.071,
-                            "Email": 0.084,
+                            "자연 유입": 0.052,
+                            "유료 광고": 0.044,
+                            "추천": 0.071,
+                            "이메일": 0.084,
                         }[channel],
                         0.012,
                     ),
@@ -242,9 +242,9 @@ def build_sample_data() -> pd.DataFrame:
                 orders = max(1, int(sessions * conversion_rate))
                 average_order_value = rng.normal(
                     {
-                        "Starter": 64,
-                        "Growth": 128,
-                        "Enterprise": 310,
+                        "스타터": 64,
+                        "성장형": 128,
+                        "엔터프라이즈": 310,
                     }[product],
                     14,
                 )
@@ -281,13 +281,34 @@ def normalize_data(frame: pd.DataFrame) -> pd.DataFrame:
     data = frame.copy()
     rename_map = {col: col.strip().lower().replace(" ", "_") for col in data.columns}
     data = data.rename(columns=rename_map)
+    column_aliases = {
+        "날짜": "date",
+        "일자": "date",
+        "지역": "region",
+        "권역": "region",
+        "채널": "channel",
+        "유입_채널": "channel",
+        "상품": "product",
+        "제품": "product",
+        "세션": "sessions",
+        "방문": "sessions",
+        "방문수": "sessions",
+        "주문": "orders",
+        "주문_수": "orders",
+        "주문수": "orders",
+        "매출": "revenue",
+        "매출액": "revenue",
+        "만족도": "csat",
+        "고객_만족도": "csat",
+    }
+    data = data.rename(columns={col: column_aliases.get(col, col) for col in data.columns})
 
     expected = ["date", "region", "channel", "product", "sessions", "orders", "revenue", "csat"]
     missing = [col for col in expected if col not in data.columns]
     if missing:
         st.warning(
             "업로드 파일에 필요한 컬럼이 없어 샘플 데이터를 사용합니다. "
-            f"필요 컬럼: {', '.join(expected)}"
+            "필요 컬럼: 날짜, 지역, 채널, 상품, 세션, 주문, 매출, 만족도"
         )
         return build_sample_data()
 
@@ -298,15 +319,39 @@ def normalize_data(frame: pd.DataFrame) -> pd.DataFrame:
     data = data.dropna(subset=["date", "region", "channel", "product"])
     numeric_defaults = {"sessions": 0, "orders": 0, "revenue": 0.0, "csat": 0.0}
     data = data.fillna(numeric_defaults)
+    data["region"] = data["region"].replace(
+        {
+            "Seoul": "서울",
+            "Busan": "부산",
+            "Incheon": "인천",
+            "Daegu": "대구",
+            "Daejeon": "대전",
+        }
+    )
+    data["channel"] = data["channel"].replace(
+        {
+            "Organic": "자연 유입",
+            "Paid": "유료 광고",
+            "Referral": "추천",
+            "Email": "이메일",
+        }
+    )
+    data["product"] = data["product"].replace(
+        {
+            "Starter": "스타터",
+            "Growth": "성장형",
+            "Enterprise": "엔터프라이즈",
+        }
+    )
     return data
 
 
 def format_currency(value: float) -> str:
     if abs(value) >= 1_000_000:
-        return f"${value / 1_000_000:.2f}M"
+        return f"{value / 1_000_000:.2f}백만 달러"
     if abs(value) >= 1_000:
-        return f"${value / 1_000:.1f}K"
-    return f"${value:,.0f}"
+        return f"{value / 1_000:.1f}천 달러"
+    return f"{value:,.0f}달러"
 
 
 def pct_change(current: float, previous: float) -> float:
@@ -378,7 +423,7 @@ def render_header() -> None:
                     핵심 지표, 추세, 채널별 성과, 원본 데이터 편집까지 한 화면에서 확인합니다.
                 </p>
             </div>
-            <div class="status-pill"><span class="dot"></span>Live Streamlit App</div>
+            <div class="status-pill"><span class="dot"></span>실시간 앱</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -415,13 +460,13 @@ def render_kpis(data: pd.DataFrame) -> None:
 
     cols = st.columns(4)
     with cols[0]:
-        metric_card("Revenue", format_currency(revenue), f"{pct_change(current_revenue, previous_revenue):+.1f}% vs prev")
+        metric_card("매출", format_currency(revenue), f"전 30일 대비 {pct_change(current_revenue, previous_revenue):+.1f}%")
     with cols[1]:
-        metric_card("Orders", f"{orders:,.0f}", f"{pct_change(current_orders, previous_orders):+.1f}% vs prev")
+        metric_card("주문 수", f"{orders:,.0f}건", f"전 30일 대비 {pct_change(current_orders, previous_orders):+.1f}%")
     with cols[2]:
-        metric_card("Conversion", f"{conversion:.2%}", f"{sessions:,.0f} sessions")
+        metric_card("전환율", f"{conversion:.2%}", f"세션 {sessions:,.0f}회")
     with cols[3]:
-        metric_card("CSAT", f"{csat:.2f}", f"{current_csat - previous_csat:+.2f} pts vs prev")
+        metric_card("고객 만족도", f"{csat:.2f}점", f"전 30일 대비 {current_csat - previous_csat:+.2f}점")
 
 
 def render_trend_chart(data: pd.DataFrame) -> None:
@@ -434,11 +479,11 @@ def render_trend_chart(data: pd.DataFrame) -> None:
 
     base = alt.Chart(daily).encode(x=alt.X("date:T", title=None))
     revenue_line = base.mark_line(color="#0f766e", strokeWidth=3).encode(
-        y=alt.Y("revenue:Q", title="Revenue"),
+        y=alt.Y("revenue:Q", title="매출"),
         tooltip=[
-            alt.Tooltip("date:T", title="Date"),
-            alt.Tooltip("revenue:Q", title="Revenue", format="$,.0f"),
-            alt.Tooltip("orders:Q", title="Orders", format=","),
+            alt.Tooltip("date:T", title="날짜"),
+            alt.Tooltip("revenue:Q", title="매출", format="$,.0f"),
+            alt.Tooltip("orders:Q", title="주문 수", format=","),
         ],
     )
     revenue_area = base.mark_area(color="#0f766e", opacity=0.12).encode(y="revenue:Q")
@@ -455,13 +500,13 @@ def render_channel_chart(data: pd.DataFrame) -> None:
         alt.Chart(channel)
         .mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, color="#2563eb")
         .encode(
-            x=alt.X("revenue:Q", title="Revenue"),
+            x=alt.X("revenue:Q", title="매출"),
             y=alt.Y("channel:N", title=None, sort="-x"),
             tooltip=[
-                alt.Tooltip("channel:N", title="Channel"),
-                alt.Tooltip("revenue:Q", title="Revenue", format="$,.0f"),
-                alt.Tooltip("orders:Q", title="Orders", format=","),
-                alt.Tooltip("sessions:Q", title="Sessions", format=","),
+                alt.Tooltip("channel:N", title="채널"),
+                alt.Tooltip("revenue:Q", title="매출", format="$,.0f"),
+                alt.Tooltip("orders:Q", title="주문 수", format=","),
+                alt.Tooltip("sessions:Q", title="세션", format=","),
             ],
         )
         .properties(height=330)
@@ -486,9 +531,9 @@ def render_product_mix(data: pd.DataFrame) -> None:
                 legend=alt.Legend(title=None, orient="bottom"),
             ),
             tooltip=[
-                alt.Tooltip("product:N", title="Product"),
-                alt.Tooltip("revenue:Q", title="Revenue", format="$,.0f"),
-                alt.Tooltip("orders:Q", title="Orders", format=","),
+                alt.Tooltip("product:N", title="상품"),
+                alt.Tooltip("revenue:Q", title="매출", format="$,.0f"),
+                alt.Tooltip("orders:Q", title="주문 수", format=","),
             ],
         )
         .properties(height=320)
@@ -513,13 +558,13 @@ def render_region_table(data: pd.DataFrame) -> None:
         use_container_width=True,
         hide_index=True,
         column_config={
-            "region": st.column_config.TextColumn("Region"),
-            "revenue": st.column_config.NumberColumn("Revenue", format="$%.2f"),
-            "orders": st.column_config.NumberColumn("Orders", format="%d"),
-            "sessions": st.column_config.NumberColumn("Sessions", format="%d"),
-            "csat": st.column_config.NumberColumn("CSAT", format="%.2f"),
+            "region": st.column_config.TextColumn("지역"),
+            "revenue": st.column_config.NumberColumn("매출", format="$%.2f"),
+            "orders": st.column_config.NumberColumn("주문 수", format="%d"),
+            "sessions": st.column_config.NumberColumn("세션", format="%d"),
+            "csat": st.column_config.NumberColumn("고객 만족도", format="%.2f"),
             "conversion": st.column_config.ProgressColumn(
-                "Conversion",
+                "전환율",
                 min_value=0,
                 max_value=max(0.01, float(region["conversion"].max())),
                 format="%.2f",
@@ -540,21 +585,21 @@ def render_data_tools(data: pd.DataFrame) -> None:
         hide_index=True,
         num_rows="dynamic",
         column_config={
-            "date": st.column_config.DateColumn("Date"),
-            "region": st.column_config.TextColumn("Region"),
-            "channel": st.column_config.TextColumn("Channel"),
-            "product": st.column_config.TextColumn("Product"),
-            "sessions": st.column_config.NumberColumn("Sessions", min_value=0, step=1),
-            "orders": st.column_config.NumberColumn("Orders", min_value=0, step=1),
-            "revenue": st.column_config.NumberColumn("Revenue", min_value=0.0, format="$%.2f"),
-            "csat": st.column_config.NumberColumn("CSAT", min_value=0.0, max_value=5.0, format="%.2f"),
+            "date": st.column_config.DateColumn("날짜"),
+            "region": st.column_config.TextColumn("지역"),
+            "channel": st.column_config.TextColumn("채널"),
+            "product": st.column_config.TextColumn("상품"),
+            "sessions": st.column_config.NumberColumn("세션", min_value=0, step=1),
+            "orders": st.column_config.NumberColumn("주문 수", min_value=0, step=1),
+            "revenue": st.column_config.NumberColumn("매출", min_value=0.0, format="$%.2f"),
+            "csat": st.column_config.NumberColumn("고객 만족도", min_value=0.0, max_value=5.0, format="%.2f"),
         },
     )
     csv = edited.to_csv(index=False).encode("utf-8-sig")
     st.download_button(
         "CSV 다운로드",
         data=csv,
-        file_name=f"streamlit_dashboard_export_{datetime.now():%Y%m%d_%H%M}.csv",
+        file_name=f"운영성과_내보내기_{datetime.now():%Y%m%d_%H%M}.csv",
         mime="text/csv",
         use_container_width=True,
     )
@@ -574,11 +619,11 @@ def render_insights(data: pd.DataFrame) -> None:
 
     cols = st.columns(3)
     with cols[0]:
-        st.metric("Top Channel", best_channel, format_currency(by_channel.iloc[0]))
+        st.metric("최고 매출 채널", best_channel, format_currency(by_channel.iloc[0]))
     with cols[1]:
-        st.metric("Best Seller", best_product, f"{by_product.iloc[0]:,.0f} orders")
+        st.metric("최다 판매 상품", best_product, f"{by_product.iloc[0]:,.0f}건")
     with cols[2]:
-        st.metric("Highest CSAT", best_region, f"{by_region.iloc[0]:.2f}")
+        st.metric("최고 만족도 지역", best_region, f"{by_region.iloc[0]:.2f}점")
 
 
 def main() -> None:
@@ -592,7 +637,7 @@ def main() -> None:
     render_kpis(data)
 
     st.write("")
-    tabs = st.tabs(["Overview", "Channels", "Regions", "Data"])
+    tabs = st.tabs(["개요", "채널", "지역", "데이터"])
 
     with tabs[0]:
         st.markdown('<p class="section-title">매출 추세</p>', unsafe_allow_html=True)
