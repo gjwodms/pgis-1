@@ -1,669 +1,561 @@
-import io
-from datetime import datetime, timedelta
+from datetime import datetime
 
-import altair as alt
-import numpy as np
+import folium
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
+from streamlit_folium import st_folium
 
 
 st.set_page_config(
-    page_title="운영 성과 대시보드",
-    page_icon=":bar_chart:",
+    page_title="Nocturnal PGIS",
+    page_icon="🌙",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-
-CUSTOM_CSS = """
+st.markdown(
+    """
 <style>
-    :root {
-        --ink: #17202a;
-        --muted: #657080;
-        --line: #d9dee7;
-        --panel: #ffffff;
-        --soft: #f5f7fb;
-        --accent: #0f766e;
-        --accent-2: #eab308;
-        --danger: #dc2626;
-    }
-
-    .stApp {
-        background:
-            linear-gradient(180deg, rgba(245, 247, 251, 0.94), rgba(245, 247, 251, 1)),
-            radial-gradient(circle at 10% 10%, rgba(15, 118, 110, 0.08), transparent 34%);
-        color: var(--ink);
-    }
-
-    [data-testid="stSidebar"] {
-        background: #ffffff;
-        border-right: 1px solid var(--line);
-    }
-
-    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-        color: var(--muted);
-    }
-
-    .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 2rem;
-        max-width: 1320px;
-    }
-
-    h1, h2, h3 {
-        letter-spacing: 0;
-    }
-
-    .app-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: flex-start;
-        padding: 1.1rem 0 1.25rem;
-        border-bottom: 1px solid var(--line);
-        margin-bottom: 1.25rem;
-    }
-
-    .app-title {
-        font-size: 2rem;
-        line-height: 1.15;
-        font-weight: 760;
-        margin: 0;
-        color: var(--ink);
-    }
-
-    .app-subtitle {
-        margin: 0.45rem 0 0;
-        color: var(--muted);
-        font-size: 0.98rem;
-        max-width: 760px;
-    }
-
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.42rem;
-        border: 1px solid var(--line);
-        background: #ffffff;
-        color: var(--ink);
-        padding: 0.48rem 0.68rem;
-        border-radius: 999px;
-        font-size: 0.88rem;
-        white-space: nowrap;
-        margin-top: 0.15rem;
-    }
-
-    .dot {
-        width: 0.52rem;
-        height: 0.52rem;
-        border-radius: 999px;
-        background: var(--accent);
-        display: inline-block;
-    }
-
-    .metric-card {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 1rem;
-        min-height: 118px;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-    }
-
-    .metric-label {
-        color: var(--muted);
-        font-size: 0.82rem;
-        font-weight: 650;
-        text-transform: uppercase;
-        margin-bottom: 0.35rem;
-    }
-
-    .metric-value {
-        font-size: 1.75rem;
-        font-weight: 760;
-        color: var(--ink);
-        line-height: 1.1;
-    }
-
-    .metric-delta {
-        margin-top: 0.45rem;
-        color: var(--accent);
-        font-size: 0.86rem;
-        font-weight: 650;
-    }
-
-    .section-title {
-        font-size: 1.05rem;
-        font-weight: 760;
-        margin: 0 0 0.35rem;
-    }
-
-    .section-help {
-        color: var(--muted);
-        margin: 0 0 0.9rem;
-        font-size: 0.92rem;
-    }
-
-    .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 1rem;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-    }
-
-    div[data-testid="stMetric"] {
-        background: #ffffff;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 0.9rem 1rem;
-    }
-
-    div[data-testid="stTabs"] button {
-        font-weight: 650;
-    }
-
-    .stButton > button,
-    .stDownloadButton > button {
-        border-radius: 8px;
-        border: 1px solid #0f766e;
-        background: #0f766e;
-        color: #ffffff;
-        font-weight: 700;
-    }
-
-    .stButton > button:hover,
-    .stDownloadButton > button:hover {
-        border-color: #115e59;
-        background: #115e59;
-        color: #ffffff;
-    }
-
-    @media (max-width: 720px) {
-        .app-header {
-            display: block;
-        }
-
-        .status-pill {
-            margin-top: 0.85rem;
-        }
-
-        .app-title {
-            font-size: 1.55rem;
-        }
-    }
+* {
+  font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+}
+.stApp {
+  background:
+    linear-gradient(135deg, rgba(14, 23, 42, 0.98), rgba(29, 38, 57, 0.96) 48%, rgba(12, 31, 37, 0.98));
+  color: #f8fafc;
+}
+.block-container {
+  max-width: 1380px;
+  padding-top: 1.25rem;
+  padding-bottom: 2.25rem;
+}
+[data-testid="stSidebar"] {
+  background: rgba(9, 17, 30, 0.95);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+.hero {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.18), rgba(244, 114, 91, 0.13));
+  border-radius: 8px;
+  padding: 26px 28px;
+  margin-bottom: 18px;
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.28);
+}
+.hero h1 {
+  font-size: 2.75rem;
+  line-height: 1.08;
+  margin: 0;
+  letter-spacing: 0;
+}
+.hero p {
+  color: #d9e4ec;
+  font-size: 1.02rem;
+  margin: 12px 0 0;
+  max-width: 880px;
+}
+.place-card {
+  background: rgba(255, 255, 255, 0.075);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 18px;
+  margin: 10px 0;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.18);
+}
+.place-title {
+  font-size: 1.22rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.badge {
+  display: inline-block;
+  padding: 4px 9px;
+  margin: 3px 4px 3px 0;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(203, 213, 225, 0.22);
+  color: #f8fafc;
+  font-size: 0.8rem;
+}
+.status-open {
+  background: rgba(20, 184, 166, 0.22);
+  color: #a7fff4;
+  border-color: rgba(45, 212, 191, 0.42);
+}
+.status-soon {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fde68a;
+  border-color: rgba(245, 158, 11, 0.38);
+}
+.status-closed {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.36);
+}
+.small-muted {
+  color: #cbd5e1;
+  font-size: 0.92rem;
+}
+.section-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  margin: 18px 0 10px;
+}
+div[data-testid="stMetric"] {
+  background: rgba(255, 255, 255, 0.075);
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+}
 </style>
-"""
+""",
+    unsafe_allow_html=True,
+)
 
 
-def inject_css() -> None:
-    st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+PLACES = [
+    {
+        "name": "문라이트 루프탑",
+        "category": "카페/바",
+        "lat": 37.5559,
+        "lon": 126.9237,
+        "area": "홍대",
+        "open": 18,
+        "close": 2,
+        "is24": False,
+        "rating": 4.7,
+        "reviews": 328,
+        "price": "3-5만원",
+        "crowd": "보통",
+        "noise": "활기참",
+        "tags": ["루프탑", "야경", "DJ 세트", "칵테일"],
+        "activities": ["라이브 DJ", "시그니처 칵테일", "야경 사진"],
+        "group": ["2명", "3-5명"],
+        "mood": ["활기찬", "실외", "대화"],
+        "weather": ["맑음", "더운 날"],
+        "scores": [4.8, 4.5, 4.1, 4.3, 4.6],
+        "trend": [4.4, 4.5, 4.6, 4.7, 4.7, 4.8],
+    },
+    {
+        "name": "온앤온 보드게임 카페",
+        "category": "카페",
+        "lat": 37.5572,
+        "lon": 126.9254,
+        "area": "홍대",
+        "open": 13,
+        "close": 5,
+        "is24": False,
+        "rating": 4.5,
+        "reviews": 211,
+        "price": "1-3만원",
+        "crowd": "여유",
+        "noise": "보통",
+        "tags": ["보드게임", "단체", "프라이빗 룸"],
+        "activities": ["보드게임 대여", "단체 이벤트", "음료 무제한"],
+        "group": ["3-5명", "6명 이상"],
+        "mood": ["조용한", "실내", "대화"],
+        "weather": ["흐림", "비", "추운 날"],
+        "scores": [4.2, 4.6, 4.7, 4.4, 4.3],
+        "trend": [4.1, 4.2, 4.3, 4.4, 4.5, 4.5],
+    },
+    {
+        "name": "심야 스터디 라운지",
+        "category": "스터디카페",
+        "lat": 37.4983,
+        "lon": 127.0276,
+        "area": "강남",
+        "open": 0,
+        "close": 24,
+        "is24": True,
+        "rating": 4.6,
+        "reviews": 189,
+        "price": "1만원 이하",
+        "crowd": "여유",
+        "noise": "조용한",
+        "tags": ["24시간", "콘센트", "수면실"],
+        "activities": ["집중 작업", "회의룸", "프린트"],
+        "group": ["혼자", "2명"],
+        "mood": ["조용한", "실내", "작업"],
+        "weather": ["흐림", "비", "추운 날", "더운 날"],
+        "scores": [4.7, 4.4, 4.8, 4.6, 4.4],
+        "trend": [4.3, 4.4, 4.5, 4.5, 4.6, 4.6],
+    },
+    {
+        "name": "VR 아케이드 배틀존",
+        "category": "오락시설",
+        "lat": 37.5008,
+        "lon": 127.0261,
+        "area": "강남",
+        "open": 16,
+        "close": 3,
+        "is24": False,
+        "rating": 4.3,
+        "reviews": 154,
+        "price": "1-3만원",
+        "crowd": "혼잡",
+        "noise": "시끌벅적",
+        "tags": ["VR존", "PC방", "게임 대전"],
+        "activities": ["VR 슈팅", "e스포츠 좌석", "콘솔 게임"],
+        "group": ["2명", "3-5명", "6명 이상"],
+        "mood": ["활기찬", "실내", "대화"],
+        "weather": ["흐림", "비", "더운 날"],
+        "scores": [4.4, 4.1, 4.2, 4.0, 4.5],
+        "trend": [4.0, 4.1, 4.2, 4.2, 4.3, 4.3],
+    },
+    {
+        "name": "한강 선셋 피크닉",
+        "category": "야외공간",
+        "lat": 37.5285,
+        "lon": 126.9328,
+        "area": "여의도",
+        "open": 18,
+        "close": 1,
+        "is24": False,
+        "rating": 4.8,
+        "reviews": 402,
+        "price": "1만원 이하",
+        "crowd": "보통",
+        "noise": "보통",
+        "tags": ["한강", "야경", "배달 가능"],
+        "activities": ["돗자리 대여", "야경 산책", "푸드트럭"],
+        "group": ["혼자", "2명", "3-5명"],
+        "mood": ["조용한", "실외", "산책"],
+        "weather": ["맑음", "더운 날"],
+        "scores": [4.9, 4.2, 4.8, 4.3, 4.7],
+        "trend": [4.5, 4.6, 4.7, 4.7, 4.8, 4.8],
+    },
+    {
+        "name": "블루 사우나 스파",
+        "category": "찜질방/스파",
+        "lat": 37.5610,
+        "lon": 127.0370,
+        "area": "왕십리",
+        "open": 0,
+        "close": 24,
+        "is24": True,
+        "rating": 4.2,
+        "reviews": 97,
+        "price": "1-3만원",
+        "crowd": "여유",
+        "noise": "조용한",
+        "tags": ["24시간", "사우나", "수면실"],
+        "activities": ["찜질방", "안마의자", "심야 식당"],
+        "group": ["혼자", "2명", "3-5명"],
+        "mood": ["조용한", "실내", "휴식"],
+        "weather": ["비", "추운 날"],
+        "scores": [4.0, 4.2, 4.5, 4.1, 4.0],
+        "trend": [4.0, 4.0, 4.1, 4.2, 4.2, 4.2],
+    },
+]
+
+WEATHER_RULES = {
+    "맑음": "야외 경관이 좋은 루프탑, 한강, 산책형 장소를 우선 추천합니다.",
+    "흐림": "날씨 영향을 덜 받는 실내 복합문화공간과 보드게임 카페를 우선 추천합니다.",
+    "비": "이동 부담이 적고 오래 머물 수 있는 실내 장소를 우선 추천합니다.",
+    "추운 날": "스터디카페, 스파, 사우나처럼 실내 체류감이 좋은 장소를 우선 추천합니다.",
+    "더운 날": "냉방이 잘 되는 실내 공간과 밤바람을 활용할 수 있는 야외 장소를 함께 추천합니다.",
+}
+
+STATUS_ORDER = {"영업 중": 0, "마감 임박": 1, "영업 종료": 2}
+STATUS_CLASS = {
+    "영업 중": "status-open",
+    "마감 임박": "status-soon",
+    "영업 종료": "status-closed",
+}
 
 
-@st.cache_data(show_spinner=False)
-def build_sample_data() -> pd.DataFrame:
-    rng = np.random.default_rng(42)
-    days = pd.date_range(datetime.today() - timedelta(days=179), periods=180, freq="D")
-    channels = ["자연 유입", "유료 광고", "추천", "이메일"]
-    regions = ["서울", "부산", "인천", "대구", "대전"]
-    products = ["스타터", "성장형", "엔터프라이즈"]
-
-    records = []
-    for day in days:
-        weekday_boost = 1.18 if day.weekday() < 5 else 0.82
-        trend = 1 + ((day - days[0]).days / len(days)) * 0.28
-        for channel in channels:
-            for product in products:
-                base = {
-                    "자연 유입": 820,
-                    "유료 광고": 1050,
-                    "추천": 470,
-                    "이메일": 390,
-                }[channel]
-                product_weight = {
-                    "스타터": 0.74,
-                    "성장형": 1.0,
-                    "엔터프라이즈": 1.36,
-                }[product]
-                sessions = max(40, int(rng.normal(base * product_weight * weekday_boost * trend, 95)))
-                conversion_rate = np.clip(
-                    rng.normal(
-                        {
-                            "자연 유입": 0.052,
-                            "유료 광고": 0.044,
-                            "추천": 0.071,
-                            "이메일": 0.084,
-                        }[channel],
-                        0.012,
-                    ),
-                    0.015,
-                    0.14,
-                )
-                orders = max(1, int(sessions * conversion_rate))
-                average_order_value = rng.normal(
-                    {
-                        "스타터": 64,
-                        "성장형": 128,
-                        "엔터프라이즈": 310,
-                    }[product],
-                    14,
-                )
-                revenue = orders * max(22, average_order_value)
-                records.append(
-                    {
-                        "date": day.date(),
-                        "region": rng.choice(regions, p=[0.42, 0.18, 0.16, 0.13, 0.11]),
-                        "channel": channel,
-                        "product": product,
-                        "sessions": sessions,
-                        "orders": orders,
-                        "revenue": round(float(revenue), 2),
-                        "csat": round(float(np.clip(rng.normal(4.33, 0.34), 3.0, 5.0)), 2),
-                    }
-                )
-    return pd.DataFrame.from_records(records)
+def badge(text, klass=""):
+    return f'<span class="badge {klass}">{text}</span>'
 
 
-def read_uploaded_file(uploaded_file: io.BytesIO | None) -> pd.DataFrame:
-    if uploaded_file is None:
-        return build_sample_data()
+def get_status(place, hour):
+    if place["is24"]:
+        return "영업 중"
 
-    name = uploaded_file.name.lower()
-    if name.endswith(".csv"):
-        return pd.read_csv(uploaded_file)
-    if name.endswith((".xlsx", ".xls")):
-        return pd.read_excel(uploaded_file)
-    st.error("CSV 또는 Excel 파일만 업로드할 수 있습니다.")
-    return build_sample_data()
+    open_hour = place["open"]
+    close_hour = place["close"]
+    is_open = (
+        open_hour <= hour < close_hour
+        if close_hour > open_hour
+        else hour >= open_hour or hour < close_hour
+    )
+
+    if not is_open:
+        return "영업 종료"
+
+    normalized_close = close_hour if close_hour > open_hour else close_hour + 24
+    normalized_hour = hour if hour >= open_hour else hour + 24
+    if normalized_close - normalized_hour <= 1:
+        return "마감 임박"
+    return "영업 중"
 
 
-def normalize_data(frame: pd.DataFrame) -> pd.DataFrame:
-    data = frame.copy()
-    rename_map = {col: col.strip().lower().replace(" ", "_") for col in data.columns}
-    data = data.rename(columns=rename_map)
-    column_aliases = {
-        "날짜": "date",
-        "일자": "date",
-        "지역": "region",
-        "권역": "region",
-        "채널": "channel",
-        "유입_채널": "channel",
-        "상품": "product",
-        "제품": "product",
-        "세션": "sessions",
-        "방문": "sessions",
-        "방문수": "sessions",
-        "주문": "orders",
-        "주문_수": "orders",
-        "주문수": "orders",
-        "매출": "revenue",
-        "매출액": "revenue",
-        "만족도": "csat",
-        "고객_만족도": "csat",
-    }
-    data = data.rename(columns={col: column_aliases.get(col, col) for col in data.columns})
+def score_place(place, group, budget, mood, space, weather, radius):
+    score = place["rating"] * 12
+    if group in place["group"]:
+        score += 15
+    if budget == place["price"]:
+        score += 12
+    if mood in place["mood"]:
+        score += 10
+    if space in place["mood"]:
+        score += 10
+    if weather in place["weather"]:
+        score += 18
+    if radius in ["2km", "5km"] or place["area"] in ["홍대", "강남"]:
+        score += 4
+    if place["crowd"] == "여유":
+        score += 3
+    return round(min(score, 100), 1)
 
-    expected = ["date", "region", "channel", "product", "sessions", "orders", "revenue", "csat"]
-    missing = [col for col in expected if col not in data.columns]
-    if missing:
-        st.warning(
-            "업로드 파일에 필요한 컬럼이 없어 샘플 데이터를 사용합니다. "
-            "필요 컬럼: 날짜, 지역, 채널, 상품, 세션, 주문, 매출, 만족도"
+
+def format_hours(place):
+    if place["is24"]:
+        return "24시간"
+    open_text = f"{place['open']:02d}:00"
+    close_text = "24:00" if place["close"] == 24 else f"{place['close']:02d}:00"
+    return f"{open_text} - {close_text}"
+
+
+st.markdown(
+    """
+<div class="hero">
+  <h1>야간 활동 장소 추천 PGIS</h1>
+  <p>
+    시간, 날씨, 인원, 예산, 공간 선호를 바탕으로 심야에 갈 만한 장소를 추천합니다.
+    지도 기반 위치 확인, 실시간 영업 상태, 리뷰 신뢰도와 평점 추이를 한 화면에서 볼 수 있습니다.
+  </p>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+with st.sidebar:
+    st.header("조건 설정")
+    now_hour = st.slider("현재 시간", 0, 23, datetime.now().hour)
+    weather = st.selectbox("날씨", list(WEATHER_RULES.keys()))
+    group = st.selectbox("인원 구성", ["혼자", "2명", "3-5명", "6명 이상"])
+    age = st.selectbox("연령대", ["20대 초반", "20대 후반", "30대"])
+    gender = st.selectbox("성별 구성", ["혼성", "여성", "남성"])
+    mood = st.radio("선호 분위기", ["조용한", "활기찬"], horizontal=True)
+    space = st.radio("공간 선호", ["실내", "실외"], horizontal=True)
+    budget = st.select_slider(
+        "예산",
+        options=["1만원 이하", "1-3만원", "3-5만원", "5만원 이상"],
+        value="1-3만원",
+    )
+    radius = st.selectbox("검색 반경", ["500m", "1km", "2km", "5km"], index=2)
+    categories = sorted({place["category"] for place in PLACES})
+    category_filter = st.multiselect("카테고리", categories, default=categories)
+
+places = []
+for place in PLACES:
+    if place["category"] not in category_filter:
+        continue
+    item = place.copy()
+    item["status"] = get_status(item, now_hour)
+    item["status_class"] = STATUS_CLASS[item["status"]]
+    item["recommend_score"] = score_place(
+        item, group, budget, mood, space, weather, radius
+    )
+    places.append(item)
+
+places = sorted(
+    places,
+    key=lambda item: (STATUS_ORDER[item["status"]], -item["recommend_score"], -item["rating"]),
+)
+df = pd.DataFrame(places)
+
+metric_1, metric_2, metric_3, metric_4 = st.columns(4)
+metric_1.metric("추천 장소", f"{len(df)}곳")
+metric_2.metric(
+    "현재 영업 중",
+    f"{df['status'].eq('영업 중').sum()}곳" if not df.empty else "0곳",
+)
+metric_3.metric("평균 평점", f"{df['rating'].mean():.1f}" if not df.empty else "-")
+metric_4.metric("현재 날씨", weather)
+st.info(WEATHER_RULES[weather])
+
+tab_map, tab_recommend, tab_detail, tab_review = st.tabs(
+    ["지도", "추천 리스트", "장소 상세", "리뷰/평판"]
+)
+
+with tab_map:
+    map_col, rank_col = st.columns([1.35, 0.65])
+    with map_col:
+        fmap = folium.Map(
+            location=[37.535, 126.99],
+            zoom_start=12,
+            tiles="CartoDB dark_matter",
         )
-        return build_sample_data()
+        for place in places:
+            marker_color = {
+                "영업 중": "green",
+                "마감 임박": "orange",
+                "영업 종료": "red",
+            }[place["status"]]
+            popup = (
+                f"<b>{place['name']}</b><br>"
+                f"{place['category']} · 평점 {place['rating']}<br>"
+                f"{place['status']}<br>"
+                f"추천 점수 {place['recommend_score']}"
+            )
+            folium.CircleMarker(
+                [place["lat"], place["lon"]],
+                radius=10,
+                color=marker_color,
+                fill=True,
+                fill_opacity=0.82,
+                popup=popup,
+            ).add_to(fmap)
+        st_folium(fmap, height=560, width=900)
 
-    data["date"] = pd.to_datetime(data["date"], errors="coerce")
-    for col in ["sessions", "orders", "revenue", "csat"]:
-        data[col] = pd.to_numeric(data[col], errors="coerce")
+    with rank_col:
+        st.markdown('<div class="section-title">실시간 추천 Top 5</div>', unsafe_allow_html=True)
+        if not places:
+            st.warning("선택한 카테고리에 해당하는 장소가 없습니다.")
+        for index, place in enumerate(places[:5], start=1):
+            st.markdown(
+                f"""
+                <div class="place-card">
+                  <div class="place-title">{index}. {place['name']}</div>
+                  {badge(place['status'], place['status_class'])}
+                  {badge(place['category'])}
+                  {badge(place['price'])}
+                  <div class="small-muted">
+                    평점 {place['rating']} · 리뷰 {place['reviews']}개 · 추천 점수 {place['recommend_score']}
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
-    data = data.dropna(subset=["date", "region", "channel", "product"])
-    numeric_defaults = {"sessions": 0, "orders": 0, "revenue": 0.0, "csat": 0.0}
-    data = data.fillna(numeric_defaults)
-    data["region"] = data["region"].replace(
-        {
-            "Seoul": "서울",
-            "Busan": "부산",
-            "Incheon": "인천",
-            "Daegu": "대구",
-            "Daejeon": "대전",
-        }
-    )
-    data["channel"] = data["channel"].replace(
-        {
-            "Organic": "자연 유입",
-            "Paid": "유료 광고",
-            "Referral": "추천",
-            "Email": "이메일",
-        }
-    )
-    data["product"] = data["product"].replace(
-        {
-            "Starter": "스타터",
-            "Growth": "성장형",
-            "Enterprise": "엔터프라이즈",
-        }
-    )
-    return data
-
-
-def format_currency(value: float) -> str:
-    if abs(value) >= 1_000_000:
-        return f"{value / 1_000_000:.2f}백만 달러"
-    if abs(value) >= 1_000:
-        return f"{value / 1_000:.1f}천 달러"
-    return f"{value:,.0f}달러"
-
-
-def pct_change(current: float, previous: float) -> float:
-    if previous == 0:
-        return 0.0
-    return ((current - previous) / previous) * 100
-
-
-def date_filter(data: pd.DataFrame) -> tuple[pd.Timestamp, pd.Timestamp]:
-    min_date = data["date"].min().date()
-    max_date = data["date"].max().date()
-    default_start = max(min_date, max_date - timedelta(days=60))
-    return st.sidebar.date_input(
-        "기간",
-        value=(default_start, max_date),
-        min_value=min_date,
-        max_value=max_date,
-    )
-
-
-def filter_data(data: pd.DataFrame) -> pd.DataFrame:
-    uploaded_file = st.sidebar.file_uploader("데이터 업로드", type=["csv", "xlsx", "xls"])
-    data = normalize_data(read_uploaded_file(uploaded_file))
-
-    selected_dates = date_filter(data)
-    if len(selected_dates) != 2:
-        start_date, end_date = data["date"].min().date(), data["date"].max().date()
-    else:
-        start_date, end_date = selected_dates
-
-    regions = sorted(data["region"].dropna().unique())
-    channels = sorted(data["channel"].dropna().unique())
-    products = sorted(data["product"].dropna().unique())
-
-    selected_regions = st.sidebar.multiselect("지역", regions, default=regions)
-    selected_channels = st.sidebar.multiselect("채널", channels, default=channels)
-    selected_products = st.sidebar.multiselect("상품", products, default=products)
-
-    mask = (
-        (data["date"].dt.date >= start_date)
-        & (data["date"].dt.date <= end_date)
-        & (data["region"].isin(selected_regions))
-        & (data["channel"].isin(selected_channels))
-        & (data["product"].isin(selected_products))
-    )
-    return data.loc[mask].copy()
-
-
-def metric_card(label: str, value: str, delta: str) -> None:
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            <div class="metric-delta">{delta}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_header() -> None:
-    st.markdown(
-        """
-        <div class="app-header">
-            <div>
-                <h1 class="app-title">운영 성과 대시보드</h1>
-                <p class="app-subtitle">
-                    핵심 지표, 추세, 채널별 성과, 원본 데이터 편집까지 한 화면에서 확인합니다.
-                </p>
+with tab_recommend:
+    if not places:
+        st.warning("필터 조건을 완화하면 더 많은 장소를 볼 수 있습니다.")
+    for place in places:
+        st.markdown(
+            f"""
+            <div class="place-card">
+              <div class="place-title">{place['name']} <span class="small-muted">· {place['area']}</span></div>
+              {badge(place['status'], place['status_class'])}
+              {badge(place['category'])}
+              {badge(place['crowd'])}
+              {badge(place['noise'])}
+              {badge(place['price'])}
+              <p class="small-muted">
+                추천 점수 <b>{place['recommend_score']}</b> · 평점 {place['rating']} · 리뷰 {place['reviews']}개 · 운영 {format_hours(place)}
+              </p>
+              <p>{' '.join(badge(tag) for tag in place['tags'])}</p>
+              <p><b>주요 활동</b> · {', '.join(place['activities'])}</p>
             </div>
-            <div class="status-pill"><span class="dot"></span>실시간 앱</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+            """,
+            unsafe_allow_html=True,
+        )
 
+with tab_detail:
+    if not places:
+        st.warning("표시할 장소가 없습니다.")
+    else:
+        selected = st.selectbox("상세 확인 장소", [place["name"] for place in places])
+        place = next(item for item in places if item["name"] == selected)
+        detail_col, chart_col = st.columns([0.9, 1.1])
 
-def render_sidebar() -> None:
-    st.sidebar.title("설정")
-    st.sidebar.caption("필터를 바꾸면 모든 지표와 차트가 즉시 갱신됩니다.")
+        with detail_col:
+            st.markdown(f"### {place['name']}")
+            st.write(f"{place['category']} · {place['area']} · {format_hours(place)}")
+            st.markdown(" ".join(badge(tag) for tag in place["tags"]), unsafe_allow_html=True)
+            st.write("**시설/활동**", ", ".join(place["activities"]))
+            st.write("**추천 대상**", f"{group} · {age} · {gender} · {mood}/{space}")
+            st.progress(
+                min(place["recommend_score"] / 100, 1.0),
+                text=f"추천 적합도 {place['recommend_score']}점",
+            )
 
+        with chart_col:
+            radar = go.Figure()
+            radar.add_trace(
+                go.Scatterpolar(
+                    r=place["scores"],
+                    theta=["분위기", "서비스", "가성비", "청결", "접근성"],
+                    fill="toself",
+                    name=place["name"],
+                )
+            )
+            radar.update_layout(
+                height=330,
+                margin=dict(l=30, r=30, t=30, b=30),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font_color="white",
+                polar=dict(radialaxis=dict(range=[0, 5], color="white")),
+                showlegend=False,
+            )
+            st.plotly_chart(radar, use_container_width=True)
 
-def render_kpis(data: pd.DataFrame) -> None:
-    if data.empty:
-        st.info("선택한 조건에 해당하는 데이터가 없습니다.")
-        return
+        trend_df = pd.DataFrame(
+            {"월": ["1월", "2월", "3월", "4월", "5월", "6월"], "평점": place["trend"]}
+        )
+        trend_chart = px.line(
+            trend_df,
+            x="월",
+            y="평점",
+            markers=True,
+            range_y=[3.8, 5.0],
+            title="최근 평점 추이",
+        )
+        trend_chart.update_layout(
+            height=300,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(255,255,255,0.04)",
+            font_color="white",
+        )
+        st.plotly_chart(trend_chart, use_container_width=True)
 
-    latest_date = data["date"].max()
-    midpoint = latest_date - timedelta(days=30)
-    current = data[data["date"] > midpoint]
-    previous = data[(data["date"] <= midpoint) & (data["date"] > midpoint - timedelta(days=30))]
-
-    revenue = data["revenue"].sum()
-    orders = data["orders"].sum()
-    sessions = data["sessions"].sum()
-    conversion = orders / sessions if sessions else 0
-    csat = data["csat"].mean()
-
-    current_revenue = current["revenue"].sum()
-    previous_revenue = previous["revenue"].sum()
-    current_orders = current["orders"].sum()
-    previous_orders = previous["orders"].sum()
-    current_csat = current["csat"].mean() if not current.empty else 0
-    previous_csat = previous["csat"].mean() if not previous.empty else 0
-
-    cols = st.columns(4)
-    with cols[0]:
-        metric_card("매출", format_currency(revenue), f"전 30일 대비 {pct_change(current_revenue, previous_revenue):+.1f}%")
-    with cols[1]:
-        metric_card("주문 수", f"{orders:,.0f}건", f"전 30일 대비 {pct_change(current_orders, previous_orders):+.1f}%")
-    with cols[2]:
-        metric_card("전환율", f"{conversion:.2%}", f"세션 {sessions:,.0f}회")
-    with cols[3]:
-        metric_card("고객 만족도", f"{csat:.2f}점", f"전 30일 대비 {current_csat - previous_csat:+.2f}점")
-
-
-def render_trend_chart(data: pd.DataFrame) -> None:
-    daily = (
-        data.groupby("date", as_index=False)
-        .agg(revenue=("revenue", "sum"), orders=("orders", "sum"), sessions=("sessions", "sum"))
-        .sort_values("date")
-    )
-    daily["date"] = pd.to_datetime(daily["date"])
-
-    base = alt.Chart(daily).encode(x=alt.X("date:T", title=None))
-    revenue_line = base.mark_line(color="#0f766e", strokeWidth=3).encode(
-        y=alt.Y("revenue:Q", title="매출"),
-        tooltip=[
-            alt.Tooltip("date:T", title="날짜"),
-            alt.Tooltip("revenue:Q", title="매출", format="$,.0f"),
-            alt.Tooltip("orders:Q", title="주문 수", format=","),
+with tab_review:
+    review_df = pd.DataFrame(
+        [
+            ["방문 인증", "야경이 좋고 직원 응대가 빨라서 데이트 코스로 추천합니다.", 4.8, 42, "문라이트 루프탑"],
+            ["방문 인증", "게임 종류가 많아서 단체 모임에 좋았습니다. 주말은 예약을 추천합니다.", 4.5, 31, "온앤온 보드게임 카페"],
+            ["일반", "조용하고 콘센트가 많아 심야 작업하기 좋습니다.", 4.6, 22, "심야 스터디 라운지"],
+            ["방문 인증", "비 오는 날 실내에서 머물기 좋고 VR 장비 상태가 괜찮았습니다.", 4.2, 17, "VR 아케이드 배틀존"],
         ],
+        columns=["인증", "리뷰", "평점", "공감", "장소"],
     )
-    revenue_area = base.mark_area(color="#0f766e", opacity=0.12).encode(y="revenue:Q")
-    st.altair_chart((revenue_area + revenue_line).properties(height=330), use_container_width=True)
-
-
-def render_channel_chart(data: pd.DataFrame) -> None:
-    channel = (
-        data.groupby("channel", as_index=False)
-        .agg(revenue=("revenue", "sum"), orders=("orders", "sum"), sessions=("sessions", "sum"))
-        .sort_values("revenue", ascending=False)
+    only_verified = st.checkbox("방문 인증 리뷰만 보기", value=True)
+    sort_key = st.selectbox("정렬", ["공감", "평점"])
+    review_view = (
+        review_df[review_df["인증"].eq("방문 인증")] if only_verified else review_df
     )
-    chart = (
-        alt.Chart(channel)
-        .mark_bar(cornerRadiusTopRight=4, cornerRadiusBottomRight=4, color="#2563eb")
-        .encode(
-            x=alt.X("revenue:Q", title="매출"),
-            y=alt.Y("channel:N", title=None, sort="-x"),
-            tooltip=[
-                alt.Tooltip("channel:N", title="채널"),
-                alt.Tooltip("revenue:Q", title="매출", format="$,.0f"),
-                alt.Tooltip("orders:Q", title="주문 수", format=","),
-                alt.Tooltip("sessions:Q", title="세션", format=","),
-            ],
+    review_view = review_view.sort_values(sort_key, ascending=False)
+
+    for _, review in review_view.iterrows():
+        st.markdown(
+            f"""
+            <div class="place-card">
+              {badge(review['인증'])}
+              {badge(review['장소'])}
+              <div class="place-title">평점 {review['평점']} <span class="small-muted">공감 {review['공감']}개</span></div>
+              <p>{review['리뷰']}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-        .properties(height=330)
+
+    keyword_df = pd.DataFrame(
+        {
+            "키워드": ["야경", "조용한", "가성비", "단체", "청결", "혼잡"],
+            "빈도": [36, 28, 24, 21, 18, 14],
+        }
     )
-    st.altair_chart(chart, use_container_width=True)
-
-
-def render_product_mix(data: pd.DataFrame) -> None:
-    product = (
-        data.groupby("product", as_index=False)
-        .agg(revenue=("revenue", "sum"), orders=("orders", "sum"))
-        .sort_values("revenue", ascending=False)
+    keyword_chart = px.bar(keyword_df, x="키워드", y="빈도", title="자주 언급되는 키워드")
+    keyword_chart.update_layout(
+        height=300,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(255,255,255,0.04)",
+        font_color="white",
     )
-    chart = (
-        alt.Chart(product)
-        .mark_arc(innerRadius=64, outerRadius=126)
-        .encode(
-            theta=alt.Theta("revenue:Q"),
-            color=alt.Color(
-                "product:N",
-                scale=alt.Scale(range=["#0f766e", "#eab308", "#2563eb", "#dc2626"]),
-                legend=alt.Legend(title=None, orient="bottom"),
-            ),
-            tooltip=[
-                alt.Tooltip("product:N", title="상품"),
-                alt.Tooltip("revenue:Q", title="매출", format="$,.0f"),
-                alt.Tooltip("orders:Q", title="주문 수", format=","),
-            ],
-        )
-        .properties(height=320)
-    )
-    st.altair_chart(chart, use_container_width=True)
+    st.plotly_chart(keyword_chart, use_container_width=True)
 
-
-def render_region_table(data: pd.DataFrame) -> None:
-    region = (
-        data.groupby("region", as_index=False)
-        .agg(
-            revenue=("revenue", "sum"),
-            orders=("orders", "sum"),
-            sessions=("sessions", "sum"),
-            csat=("csat", "mean"),
-        )
-        .sort_values("revenue", ascending=False)
-    )
-    region["conversion"] = np.where(region["sessions"] > 0, region["orders"] / region["sessions"], 0)
-    st.dataframe(
-        region,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "region": st.column_config.TextColumn("지역"),
-            "revenue": st.column_config.NumberColumn("매출", format="$%.2f"),
-            "orders": st.column_config.NumberColumn("주문 수", format="%d"),
-            "sessions": st.column_config.NumberColumn("세션", format="%d"),
-            "csat": st.column_config.NumberColumn("고객 만족도", format="%.2f"),
-            "conversion": st.column_config.ProgressColumn(
-                "전환율",
-                min_value=0,
-                max_value=max(0.01, float(region["conversion"].max())),
-                format="%.2f",
-            ),
-        },
-    )
-
-
-def render_data_tools(data: pd.DataFrame) -> None:
-    st.markdown('<p class="section-title">데이터 편집</p>', unsafe_allow_html=True)
-    st.markdown(
-        '<p class="section-help">표에서 값을 수정한 뒤 CSV로 내려받을 수 있습니다.</p>',
-        unsafe_allow_html=True,
-    )
-    edited = st.data_editor(
-        data.sort_values("date", ascending=False).head(500),
-        use_container_width=True,
-        hide_index=True,
-        num_rows="dynamic",
-        column_config={
-            "date": st.column_config.DateColumn("날짜"),
-            "region": st.column_config.TextColumn("지역"),
-            "channel": st.column_config.TextColumn("채널"),
-            "product": st.column_config.TextColumn("상품"),
-            "sessions": st.column_config.NumberColumn("세션", min_value=0, step=1),
-            "orders": st.column_config.NumberColumn("주문 수", min_value=0, step=1),
-            "revenue": st.column_config.NumberColumn("매출", min_value=0.0, format="$%.2f"),
-            "csat": st.column_config.NumberColumn("고객 만족도", min_value=0.0, max_value=5.0, format="%.2f"),
-        },
-    )
-    csv = edited.to_csv(index=False).encode("utf-8-sig")
-    st.download_button(
-        "CSV 다운로드",
-        data=csv,
-        file_name=f"운영성과_내보내기_{datetime.now():%Y%m%d_%H%M}.csv",
-        mime="text/csv",
-        use_container_width=True,
-    )
-
-
-def render_insights(data: pd.DataFrame) -> None:
-    if data.empty:
-        return
-
-    by_channel = data.groupby("channel")["revenue"].sum().sort_values(ascending=False)
-    by_product = data.groupby("product")["orders"].sum().sort_values(ascending=False)
-    by_region = data.groupby("region")["csat"].mean().sort_values(ascending=False)
-
-    best_channel = by_channel.index[0]
-    best_product = by_product.index[0]
-    best_region = by_region.index[0]
-
-    cols = st.columns(3)
-    with cols[0]:
-        st.metric("최고 매출 채널", best_channel, format_currency(by_channel.iloc[0]))
-    with cols[1]:
-        st.metric("최다 판매 상품", best_product, f"{by_product.iloc[0]:,.0f}건")
-    with cols[2]:
-        st.metric("최고 만족도 지역", best_region, f"{by_region.iloc[0]:.2f}점")
-
-
-def main() -> None:
-    inject_css()
-    render_sidebar()
-
-    raw_data = build_sample_data()
-    data = filter_data(raw_data)
-
-    render_header()
-    render_kpis(data)
-
-    st.write("")
-    tabs = st.tabs(["개요", "채널", "지역", "데이터"])
-
-    with tabs[0]:
-        st.markdown('<p class="section-title">매출 추세</p>', unsafe_allow_html=True)
-        st.markdown('<p class="section-help">선택한 기간의 일별 매출 흐름입니다.</p>', unsafe_allow_html=True)
-        render_trend_chart(data)
-        render_insights(data)
-
-    with tabs[1]:
-        col_left, col_right = st.columns([1.35, 1])
-        with col_left:
-            st.markdown('<p class="section-title">채널별 매출</p>', unsafe_allow_html=True)
-            st.markdown('<p class="section-help">유입 채널별 매출, 주문, 세션을 비교합니다.</p>', unsafe_allow_html=True)
-            render_channel_chart(data)
-        with col_right:
-            st.markdown('<p class="section-title">상품 믹스</p>', unsafe_allow_html=True)
-            st.markdown('<p class="section-help">상품군별 매출 기여도를 확인합니다.</p>', unsafe_allow_html=True)
-            render_product_mix(data)
-
-    with tabs[2]:
-        st.markdown('<p class="section-title">지역별 성과</p>', unsafe_allow_html=True)
-        st.markdown('<p class="section-help">지역 단위의 매출, 전환율, 만족도를 비교합니다.</p>', unsafe_allow_html=True)
-        render_region_table(data)
-
-    with tabs[3]:
-        render_data_tools(data)
-
-
-if __name__ == "__main__":
-    main()
+st.caption("Demo MVP · Streamlit 배포용 샘플 데이터 기반 PGIS 대시보드")
